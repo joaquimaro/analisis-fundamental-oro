@@ -5,7 +5,7 @@ Histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (c
 **URL raw del dataset (fuente canónica):**
 
 ```
-https://raw.githubusercontent.com/{USUARIO}/cot-oro/main/cot_gold_historico.csv
+https://raw.githubusercontent.com/joaquimaro/cot-oro/main/cot_gold_historico.csv
 ```
 
 ## Qué contiene
