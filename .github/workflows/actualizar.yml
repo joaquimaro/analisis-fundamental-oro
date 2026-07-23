@@ -1,0 +1,44 @@
+name: Actualizar COT oro
+
+on:
+  schedule:
+    # 06:00 UTC = 08:00 Madrid (verano). Sabado tras la publicacion CFTC del viernes
+    # (15:30 ET) + reintento el domingo (inocuo si el sabado ya actualizo: sin diff, sin commit).
+    - cron: '0 6 * * 6'
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Regenerar CSV (full rebuild + validacion)
+        run: python build_cot_gold_csv.py
+
+      - name: Commit y push si hay cambios
+        run: |
+          if git diff --quiet -- cot_gold_historico.csv; then
+            echo "Sin cambios en el CSV: nada que commitear."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add cot_gold_historico.csv
+            ULTIMA=$(tail -1 cot_gold_historico.csv | cut -d, -f1)
+            git commit -m "Actualiza COT oro (informe del martes $ULTIMA)"
+            git push
+          fi
