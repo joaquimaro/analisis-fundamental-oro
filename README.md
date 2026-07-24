@@ -1,6 +1,6 @@
 # analisis-fundamental-oro
 
-Datos para el análisis fundamental del oro en CSVs listos para analizar: histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy) desde enero de 1986, más dos series de precio del futuro **GC=F**: velas diarias (histórico completo) y velas de 1 hora (últimos 30 días).
+Datos para el análisis fundamental del oro en CSVs listos para analizar: histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy) desde enero de 1986, más dos series de precio del futuro **GC=F** y otras dos del **índice dólar DXY** (`DX-Y.NYB`): velas diarias (histórico completo) y velas de 1 hora (últimos 30 días) de cada uno.
 
 > Este repo se llamaba **cot-oro** hasta el 24-07-2026; GitHub redirige las URLs antiguas, pero la fuente canónica es la nueva.
 
@@ -10,6 +10,8 @@ Datos para el análisis fundamental del oro en CSVs listos para analizar: histó
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/cot_gold_historico.csv
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_diario.csv
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_1h.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/dxy_diario.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/dxy_1h.csv
 ```
 
 ## Qué contiene
@@ -49,7 +51,7 @@ Entre spot y futuro existe una pequeña base (contango), así que al comparar pr
 
 ## Series de precio GC=F (`oro_diario.csv` y `oro_1h.csv`)
 
-Dos ficheros con el precio del **futuro de oro GC=F (COMEX)** descargado de yfinance, regenerados **cada madrugada a las 05:30 UTC**:
+Dos ficheros con el precio del **futuro de oro GC=F (COMEX)** descargado de yfinance, regenerados **cada madrugada a las 05:30 UTC** (redondeo a 2 decimales):
 
 ### `oro_diario.csv` — velas diarias, histórico máximo disponible (~ago-2000 → hoy)
 
@@ -72,11 +74,26 @@ Dos ficheros con el precio del **futuro de oro GC=F (COMEX)** descargado de yfin
 
 > ⚠️ **GC=F es el futuro COMEX, no el spot XAUUSD**: los niveles difieren ligeramente (base/contango, normalmente unos pocos dólares) y el futuro tiene huecos de negociación (cierre diario + fin de semana) que el spot OTC casi no tiene. Para casar niveles exactos con un broker de XAUUSD hay que contar con ese desfase.
 
+## Series de precio del DXY (`dxy_diario.csv` y `dxy_1h.csv`)
+
+Mismo tratamiento que el oro, aplicado al **índice dólar DXY** con el ticker **`DX-Y.NYB`** de Yahoo Finance: el **US Dollar Index de ICE al contado** (el índice en sí, no el futuro DX). Se regeneran en el mismo cron diario de las 05:30 UTC.
+
+- **`dxy_diario.csv`** — velas diarias, histórico máximo disponible (**ene-1971 → hoy**, >14.000 filas). Mismas columnas que `oro_diario.csv` (`fecha`, `apertura`, `maximo`, `minimo`, `cierre`, `volumen`).
+- **`dxy_1h.csv`** — velas de 1 hora en UTC, ventana rodante de 30 días. Mismas columnas que `oro_1h.csv`, incluida `gap_apertura` (apertura menos cierre de la vela anterior), que aquí mide los huecos del cierre de la sesión ICE y del fin de semana.
+
+Diferencias respecto a los ficheros del oro:
+
+- Los precios van redondeados a **3 decimales** (el índice cotiza con más precisión que el futuro del oro, que usa 2).
+- La columna `volumen` existe para mantener el esquema idéntico, pero **siempre vale 0**: DX-Y.NYB es un índice calculado, no un instrumento negociado, y Yahoo no publica volumen para él. Para volumen real habría que mirar el futuro DX de ICE (no disponible en Yahoo, ver nota siguiente).
+- Si la validación del DXY falla en el cron pero la del oro pasa, el workflow **commitea igualmente el oro** y deja el fallo del DXY anotado como *warning* en la ejecución de Actions, conservando la última versión buena de los ficheros del DXY.
+
+> **Por qué `DX-Y.NYB` y no `DX=F`**: se probó el futuro `DX=F` como alternativa, pero Yahoo Finance ya no lo sirve (responde 404 / "possibly delisted" tanto en diario como en intradía, comprobado el 24-07-2026). `DX-Y.NYB` en cambio devuelve histórico diario desde 1971 e intradía 1h de forma fiable, así que es el ticker activo.
+
 ## Actualización
 
 GitHub Actions ejecuta el pipeline con tres crons:
 
-- **Diario, 05:30 UTC**: solo `descarga_precios.py` → refresca `oro_diario.csv` y `oro_1h.csv`.
+- **Diario, 05:30 UTC**: solo `descarga_precios.py` → refresca los cuatro ficheros de precio (`oro_diario.csv`, `oro_1h.csv`, `dxy_diario.csv`, `dxy_1h.csv`).
 - **Sábado y domingo, 06:00 UTC** (08:00 Madrid en horario de verano): ambos scripts — full rebuild del COT 1986→hoy tras la publicación del viernes de la CFTC (el domingo es reintento inocuo) + precios.
 
 Ambos scripts validan la integridad del resultado antes de guardar (número de filas mínimo y frescura de la última fecha/vela); si la validación falla, el job termina en error **sin commitear**, conservando la versión previa de los ficheros. Si no hay datos nuevos no se crea commit. También puede lanzarse a mano desde la pestaña Actions (`workflow_dispatch`, ejecuta ambos scripts).
