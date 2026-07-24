@@ -2,8 +2,11 @@ name: Actualizar COT oro
 
 on:
   schedule:
+    # 05:30 UTC diario: solo precios GC=F (oro_diario.csv + oro_1h.csv)
+    - cron: '30 5 * * *'
     # 06:00 UTC = 08:00 Madrid (verano). Sabado tras la publicacion CFTC del viernes
     # (15:30 ET) + reintento el domingo (inocuo si el sabado ya actualizo: sin diff, sin commit).
+    # Estos dos crons ejecutan ambos scripts (COT + precios).
     - cron: '0 6 * * 6'
     - cron: '0 6 * * 0'
   workflow_dispatch:
@@ -27,18 +30,28 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Regenerar CSV (full rebuild + validacion)
+      - name: Regenerar CSV COT (full rebuild + validacion)
+        # se salta en el cron diario de precios; corre en sabado/domingo y en manual
+        if: github.event_name != 'schedule' || github.event.schedule != '30 5 * * *'
         run: python build_cot_gold_csv.py
+
+      - name: Descargar precios GC=F (diario + 1h, con validacion)
+        run: python descarga_precios.py
 
       - name: Commit y push si hay cambios
         run: |
-          if git diff --quiet -- cot_gold_historico.csv; then
-            echo "Sin cambios en el CSV: nada que commitear."
+          FICHEROS="cot_gold_historico.csv oro_diario.csv oro_1h.csv"
+          if [ -z "$(git status --porcelain -- $FICHEROS)" ]; then
+            echo "Sin cambios en los CSV: nada que commitear."
           else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add cot_gold_historico.csv
-            ULTIMA=$(tail -1 cot_gold_historico.csv | cut -d, -f1)
-            git commit -m "Actualiza COT oro (informe del martes $ULTIMA)"
+            git add $FICHEROS
+            if [ -n "$(git status --porcelain -- cot_gold_historico.csv)" ]; then
+              ULTIMA=$(tail -1 cot_gold_historico.csv | cut -d, -f1)
+              git commit -m "Actualiza COT oro (informe del martes $ULTIMA) + precios GC=F"
+            else
+              git commit -m "Actualiza precios GC=F ($(date -u +%Y-%m-%d))"
+            fi
             git push
           fi

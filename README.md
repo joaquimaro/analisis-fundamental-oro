@@ -1,11 +1,13 @@
 # cot-oro
 
-Histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy), desde enero de 1986 hasta la actualidad, en un único CSV listo para analizar.
+Histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy), desde enero de 1986 hasta la actualidad, en un único CSV listo para analizar. Además, dos series de precio del futuro **GC=F** para análisis técnico: velas diarias (histórico completo) y velas de 1 hora (últimos 30 días).
 
-**URL raw del dataset (fuente canónica):**
+**URLs raw de los datasets (fuente canónica):**
 
 ```
 https://raw.githubusercontent.com/joaquimaro/cot-oro/main/cot_gold_historico.csv
+https://raw.githubusercontent.com/joaquimaro/cot-oro/main/oro_diario.csv
+https://raw.githubusercontent.com/joaquimaro/cot-oro/main/oro_1h.csv
 ```
 
 ## Qué contiene
@@ -43,13 +45,44 @@ Cada fila es un informe semanal de la CFTC (snapshot del **martes** al cierre, p
 
 Entre spot y futuro existe una pequeña base (contango), así que al comparar precios a caballo del empalme conviene tener en cuenta la columna `fuente_precio`.
 
+## Series de precio GC=F (`oro_diario.csv` y `oro_1h.csv`)
+
+Dos ficheros con el precio del **futuro de oro GC=F (COMEX)** descargado de yfinance, regenerados **cada madrugada a las 05:30 UTC**:
+
+### `oro_diario.csv` — velas diarias, histórico máximo disponible (~ago-2000 → hoy)
+
+| Columna | Descripción |
+|---|---|
+| `fecha` | Día de la vela (YYYY-MM-DD) |
+| `apertura` / `maximo` / `minimo` / `cierre` | OHLC en USD/oz, 2 decimales |
+| `volumen` | Volumen negociado del contrato frontal según Yahoo Finance |
+
+> yfinance no publica el **open interest** de GC=F, por eso el fichero no lo incluye. Para OI está la columna `open_interest` (semanal) del CSV del COT.
+
+### `oro_1h.csv` — velas de 1 hora, ventana rodante de 30 días
+
+| Columna | Descripción |
+|---|---|
+| `fecha_hora` | Inicio de la vela en **UTC**, con sufijo explícito de zona (`2026-07-24T13:00:00+00:00`) |
+| `apertura` / `maximo` / `minimo` / `cierre` | OHLC en USD/oz, 2 decimales |
+| `volumen` | Volumen de la vela |
+| `gap_apertura` | Apertura de la vela menos cierre de la vela anterior: deja medidos en el propio fichero los huecos del cierre diario de COMEX (~1 h entre las 21:00 y las 22:00 UTC según horario de verano de EE. UU.) y del fin de semana. Vacío en la primera fila |
+
+> ⚠️ **GC=F es el futuro COMEX, no el spot XAUUSD**: los niveles difieren ligeramente (base/contango, normalmente unos pocos dólares) y el futuro tiene huecos de negociación (cierre diario + fin de semana) que el spot OTC casi no tiene. Para casar niveles exactos con un broker de XAUUSD hay que contar con ese desfase.
+
 ## Actualización
 
-GitHub Actions regenera el CSV completo (full rebuild 1986→hoy, con validación de integridad) **cada sábado a las 06:00 UTC** (08:00 Madrid en horario de verano), tras la publicación del viernes de la CFTC, con **reintento el domingo** a la misma hora. Si no hay datos nuevos no se crea commit. También puede lanzarse a mano desde la pestaña Actions (`workflow_dispatch`).
+GitHub Actions ejecuta el pipeline con tres crons:
+
+- **Diario, 05:30 UTC**: solo `descarga_precios.py` → refresca `oro_diario.csv` y `oro_1h.csv`.
+- **Sábado y domingo, 06:00 UTC** (08:00 Madrid en horario de verano): ambos scripts — full rebuild del COT 1986→hoy tras la publicación del viernes de la CFTC (el domingo es reintento inocuo) + precios.
+
+Ambos scripts validan la integridad del resultado antes de guardar (número de filas mínimo y frescura de la última fecha/vela); si la validación falla, el job termina en error **sin commitear**, conservando la versión previa de los ficheros. Si no hay datos nuevos no se crea commit. También puede lanzarse a mano desde la pestaña Actions (`workflow_dispatch`, ejecuta ambos scripts).
 
 ## Regenerar en local
 
 ```bash
 pip install -r requirements.txt
 python build_cot_gold_csv.py
+python descarga_precios.py
 ```
