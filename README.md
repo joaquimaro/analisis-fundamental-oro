@@ -1,13 +1,15 @@
-# cot-oro
+# analisis-fundamental-oro
 
-Histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy), desde enero de 1986 hasta la actualidad, en un único CSV listo para analizar. Además, dos series de precio del futuro **GC=F** para análisis técnico: velas diarias (histórico completo) y velas de 1 hora (últimos 30 días).
+Datos para el análisis fundamental del oro en CSVs listos para analizar: histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy) desde enero de 1986, más dos series de precio del futuro **GC=F**: velas diarias (histórico completo) y velas de 1 hora (últimos 30 días).
+
+> Este repo se llamaba **cot-oro** hasta el 24-07-2026; GitHub redirige las URLs antiguas, pero la fuente canónica es la nueva.
 
 **URLs raw de los datasets (fuente canónica):**
 
 ```
-https://raw.githubusercontent.com/joaquimaro/cot-oro/main/cot_gold_historico.csv
-https://raw.githubusercontent.com/joaquimaro/cot-oro/main/oro_diario.csv
-https://raw.githubusercontent.com/joaquimaro/cot-oro/main/oro_1h.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/cot_gold_historico.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_diario.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_1h.csv
 ```
 
 ## Qué contiene
