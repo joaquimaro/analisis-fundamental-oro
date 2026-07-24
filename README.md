@@ -12,6 +12,7 @@ https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_d
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_1h.csv
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/dxy_diario.csv
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/dxy_1h.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/tipos.csv
 ```
 
 ## Qué contiene
@@ -89,12 +90,34 @@ Diferencias respecto a los ficheros del oro:
 
 > **Por qué `DX-Y.NYB` y no `DX=F`**: se probó el futuro `DX=F` como alternativa, pero Yahoo Finance ya no lo sirve (responde 404 / "possibly delisted" tanto en diario como en intradía, comprobado el 24-07-2026). `DX-Y.NYB` en cambio devuelve histórico diario desde 1971 e intradía 1h de forma fiable, así que es el ticker activo.
 
+## Tipos de interés y crédito (`tipos.csv`)
+
+Serie diaria de tipos y crédito descargada de **FRED** (St. Louis Fed) por URL pública (`fredgraph.csv?id=SERIE`, sin API key), regenerada en el mismo cron diario de las 05:30 UTC por `descarga_tipos.py`. FRED publica con **1-2 días hábiles de retraso**, así que el último dato normalmente es de anteayer.
+
+| Columna | Serie FRED | Descripción |
+|---|---|---|
+| `fecha` | — | Día del dato (YYYY-MM-DD); solo días con dato publicado en alguna serie, sin interpolar fines de semana ni festivos |
+| `nominal_10a` | `DGS10` | Treasury 10 años, rendimiento nominal (%). Desde 1962 |
+| `real_10a` | `DFII10` | TIPS 10 años, rendimiento real (%). Desde 2003 |
+| `breakeven_10a` | calculada | `nominal_10a − real_10a`: inflación implícita a 10 años. Solo en filas donde existen ambas patas |
+| `spread_hy` | `BAMLH0A0HYM2` | Spread high yield ICE BofA (puntos porcentuales sobre Treasuries) |
+
+Interpretación rápida de cara al oro:
+
+- **`real_10a` alto (o subiendo) presiona al oro a la baja**: el tipo real es el coste de oportunidad de un activo sin rendimiento; es la correlación macro más fiable del XAUUSD.
+- **`breakeven_10a` subiendo** = mercado descontando más inflación, viento a favor del oro como cobertura.
+- **`spread_hy` estrechándose** = apetito por riesgo, viento en contra del oro refugio; **ampliándose** = estrés de crédito, viento a favor.
+
+> ⚠️ **`spread_hy` solo cubre los últimos ~3 años**: `BAMLH0A0HYM2` es una serie licenciada de ICE BofA y FRED limita su descarga por URL pública a esa ventana (ignora el parámetro `cosd`, comprobado el 24-07-2026; el histórico completo desde 1996 solo está disponible con API key). Las celdas anteriores a esa ventana van vacías. Los huecos (`.` de FRED) se dejan como celda vacía, nunca como cero.
+
+La validación previa al commit exige >5000 filas, último `real_10a` con dato a ≤7 días naturales y dentro del rango −3 a +5. Si falla, el paso queda en rojo **sin tocar `tipos.csv`** (se conserva la última versión buena) y el resto del pipeline (oro, DXY, COT) sigue commiteando con normalidad.
+
 ## Actualización
 
 GitHub Actions ejecuta el pipeline con tres crons:
 
-- **Diario, 05:30 UTC**: solo `descarga_precios.py` → refresca los cuatro ficheros de precio (`oro_diario.csv`, `oro_1h.csv`, `dxy_diario.csv`, `dxy_1h.csv`).
-- **Sábado y domingo, 06:00 UTC** (08:00 Madrid en horario de verano): ambos scripts — full rebuild del COT 1986→hoy tras la publicación del viernes de la CFTC (el domingo es reintento inocuo) + precios.
+- **Diario, 05:30 UTC**: `descarga_precios.py` (los cuatro ficheros de precio: `oro_diario.csv`, `oro_1h.csv`, `dxy_diario.csv`, `dxy_1h.csv`) + `descarga_tipos.py` (`tipos.csv`).
+- **Sábado y domingo, 06:00 UTC** (08:00 Madrid en horario de verano): los tres scripts — full rebuild del COT 1986→hoy tras la publicación del viernes de la CFTC (el domingo es reintento inocuo) + precios + tipos.
 
 Ambos scripts validan la integridad del resultado antes de guardar (número de filas mínimo y frescura de la última fecha/vela); si la validación falla, el job termina en error **sin commitear**, conservando la versión previa de los ficheros. Si no hay datos nuevos no se crea commit. También puede lanzarse a mano desde la pestaña Actions (`workflow_dispatch`, ejecuta ambos scripts).
 
@@ -104,4 +127,5 @@ Ambos scripts validan la integridad del resultado antes de guardar (número de f
 pip install -r requirements.txt
 python build_cot_gold_csv.py
 python descarga_precios.py
+python descarga_tipos.py
 ```

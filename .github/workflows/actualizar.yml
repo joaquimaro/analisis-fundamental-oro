@@ -2,7 +2,7 @@ name: Actualizar COT oro
 
 on:
   schedule:
-    # 05:30 UTC diario: solo precios (oro_diario.csv + oro_1h.csv + dxy_diario.csv + dxy_1h.csv)
+    # 05:30 UTC diario: precios (oro_* + dxy_*) + tipos FRED (tipos.csv); el COT solo en finde
     - cron: '30 5 * * *'
     # 06:00 UTC = 08:00 Madrid (verano). Sabado tras la publicacion CFTC del viernes
     # (15:30 ET) + reintento el domingo (inocuo si el sabado ya actualizo: sin diff, sin commit).
@@ -38,9 +38,14 @@ jobs:
       - name: Descargar precios GC=F y DXY (diario + 1h, con validacion)
         run: python descarga_precios.py
 
+      - name: Descargar tipos FRED (tipos.csv, con validacion)
+        # si FRED falla, el paso queda en rojo pero el commit del resto sigue adelante
+        continue-on-error: true
+        run: python descarga_tipos.py
+
       - name: Commit y push si hay cambios
         run: |
-          FICHEROS="cot_gold_historico.csv oro_diario.csv oro_1h.csv dxy_diario.csv dxy_1h.csv"
+          FICHEROS="cot_gold_historico.csv oro_diario.csv oro_1h.csv dxy_diario.csv dxy_1h.csv tipos.csv"
           if [ -z "$(git status --porcelain -- $FICHEROS)" ]; then
             echo "Sin cambios en los CSV: nada que commitear."
           else
