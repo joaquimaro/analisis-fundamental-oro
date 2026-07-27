@@ -123,13 +123,15 @@ Serie **diaria** del volumen negociado y el interés abierto **totales** de los 
 |---|---|
 | `fecha` | Día de la sesión COMEX (YYYY-MM-DD) |
 | `volumen` | Contratos negociados ese día, sumados todos los vencimientos |
-| `open_interest` | Interés abierto total al cierre; **vacío si aún no está liquidado** |
-| `estado` | `final` (OI ya liquidado por CME) o `preliminar` (última sesión, OI pendiente) |
+| `open_interest` | Interés abierto total al cierre; **vacío si aún no está publicado** |
+| `estado` | `final` (dato definitivo de CME) o `preliminar` (última sesión, revisable) |
 | `contrato_activo` | Vencimiento con más volumen ese día (p. ej. `GCQ26`) |
+
+**Qué mide `volumen`**: la serie replica el **"Total Volume" final de CME** — Globex **más** PNT/ClearPort (bloques, EFP, EFR ex-pit). Verificado al contrato contra cmegroup.com (23-07-2026: Globex 221.587 + PNT 7.349 = 228.936 = fila del CSV).
 
 Detalles a tener en cuenta:
 
-- **El OI liquida T+1 hábil**: CME publica el OI definitivo de cada sesión el día hábil siguiente. La última fila puede ir `preliminar` con `open_interest` vacío — se usa su `volumen` pero **no** se arrastra el OI del día anterior. El full rebuild diario la corrige sola en la siguiente ejecución. En particular, el **OI del viernes** no está disponible hasta el lunes: la ejecución del sábado deja el viernes con volumen válido y OI pendiente.
+- **El dato final de cada sesión sale T+1 hábil** (~10:10 CT): hasta entonces la última fila va `preliminar` y **tanto su `volumen` como su `open_interest` son revisables** — el volumen preliminar de Barchart no incluye aún todo el ex-pit y suele revisarse **al alza un 5-10 %** con el dato final (ejemplo real: viernes 24-07-2026, preliminar 162.410 → total CME 178.469, de los que 12.840 eran EFP). Si el OI aún no está publicado, la celda va vacía — nunca se arrastra el del día anterior. El full rebuild diario lo corrige todo solo en la siguiente ejecución. En particular, el dato del **viernes** no es final hasta el lunes por la tarde: la ejecución del sábado lo deja `preliminar`.
 - **La sesión en curso se excluye siempre** (su volumen sería parcial): el último dato es la última sesión ya cerrada.
 - **Validación contra la CFTC**: antes de escribir, el script exige que el OI de **todos los martes** de la ventana cuadre con la columna `open_interest` de `cot_gold_historico.csv` (margen ≤5 contratos; en la validación inicial del 27-07-2026, 51 martes cuadraron con desvío 0). Si un martes desvía, o Barchart deja de responder, el paso falla **sin tocar el CSV** (se conserva la última versión buena) y el resto del pipeline sigue commiteando. No hay fallback degradado: nunca entra en la serie el OI de un solo contrato.
 

@@ -12,10 +12,16 @@ Ventana rodante de 12 meses, full rebuild en cada ejecucion. SIN fallback: si
 Barchart no responde, exit 1 sin escribir (una fila ausente es mejor que el OI
 de un solo contrato contaminando la serie).
 
+La serie replica el "Total Volume" FINAL de CME (Globex + PNT/ClearPort, es
+decir incluye bloques/EFP/EFR ex-pit). Validado al contrato: 23-jul-2026
+Globex 221,587 + PNT 7,349 = 228,936 = nuestra fila.
+
 Estado por fila:
-  - "final": OI ya liquidado por CME (lo normal, T+1 habil)
-  - "preliminar": la ultima sesion aun sin OI liquidado -> open_interest VACIO
-    (no se arrastra el del dia anterior); el volumen si es valido
+  - "final": CME ya publico el dato definitivo de la sesion (T+1 habil ~10:10 CT)
+  - "preliminar": la ULTIMA sesion, siempre — su volumen y su OI aun pueden
+    revisarse (el volumen final incorpora el ex-pit, tipicamente +5-10% sobre
+    el preliminar que sirve Barchart). Si el OI aun no esta publicado la celda
+    va VACIA (no se arrastra el del dia anterior)
 
 La sesion EN CURSO (fecha de hoy) se excluye siempre: su volumen aun es parcial
 (la sesion COMEX del dia arranca a las 22:00 UTC de la vispera).
@@ -139,8 +145,8 @@ print(f"  {n_contratos} contratos con datos, {len(agg)} sesiones", flush=True)
 # ---------- 2. Filas + estado final/preliminar ----------
 # la sesion en curso (hoy) se descarta: volumen parcial intradia
 fechas = sorted(f for f in agg if f < fin)
-# sesiones de la cola aun sin OI liquidado: Barchart da 0 (o un parcial muy bajo
-# si pilla la liquidacion a medias); su OI va vacio, no se arrastra el previo
+# cola sin OI liquidado (Barchart da 0, o un parcial muy bajo si pilla la
+# liquidacion a medias): su OI va vacio, no se arrastra el previo
 sin_liquidar = 0
 while sin_liquidar < len(fechas) and agg[fechas[-1 - sin_liquidar]]["oi"] == 0:
     sin_liquidar += 1
@@ -148,12 +154,15 @@ filas_csv = []
 for i, fecha in enumerate(fechas):
     a = agg[fecha]
     oi_previo = agg[fechas[i - 1]]["oi"] if i else None
-    preliminar = (i >= len(fechas) - sin_liquidar - 1 and
-                  (a["oi"] == 0 or (oi_previo and a["oi"] < 0.9 * oi_previo)))
+    # la ultima sesion es SIEMPRE preliminar: CME no publica su dato final
+    # (volumen con ex-pit + OI liquidado) hasta el dia habil siguiente
+    preliminar = (i == len(fechas) - 1 or
+                  (i >= len(fechas) - sin_liquidar - 1 and
+                   (a["oi"] == 0 or (oi_previo and a["oi"] < 0.9 * oi_previo))))
     filas_csv.append({
         "fecha": fecha,
         "volumen": a["volumen"],
-        "open_interest": "" if preliminar else a["oi"],
+        "open_interest": "" if (preliminar and a["oi"] == 0) else a["oi"],
         "estado": "preliminar" if preliminar else "final",
         "contrato_activo": a["contrato"],
     })
