@@ -1,6 +1,6 @@
 # analisis-fundamental-oro
 
-Datos para el análisis fundamental del oro en CSVs listos para analizar: histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy) desde enero de 1986, más dos series de precio del futuro **GC=F** y otras dos del **índice dólar DXY** (`DX-Y.NYB`): velas diarias (histórico completo) y velas de 1 hora (últimos 30 días) de cada uno.
+Datos para el análisis fundamental del oro en CSVs listos para analizar: histórico semanal del informe **COT (Commitments of Traders) del oro COMEX** (código CFTC `088691`, contratos de 100 onzas troy) desde enero de 1986, más dos series de precio del futuro **GC=F** y otras dos del **índice dólar DXY** (`DX-Y.NYB`): velas diarias (histórico completo) y velas de 1 hora (últimos 30 días) de cada uno. Incluye además la serie diaria de tipos/crédito de FRED (`tipos.csv`) y el volumen + open interest diarios **agregados** de los futuros GC (`oi_volumen.csv`).
 
 > Este repo se llamaba **cot-oro** hasta el 24-07-2026; GitHub redirige las URLs antiguas, pero la fuente canónica es la nueva.
 
@@ -13,6 +13,7 @@ https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oro_1
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/dxy_diario.csv
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/dxy_1h.csv
 https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/tipos.csv
+https://raw.githubusercontent.com/joaquimaro/analisis-fundamental-oro/main/oi_volumen.csv
 ```
 
 ## Qué contiene
@@ -112,11 +113,31 @@ Interpretación rápida de cara al oro:
 
 La validación previa al commit exige >5000 filas, último `real_10a` con dato a ≤7 días naturales y dentro del rango −3 a +5. Si falla, el paso queda en rojo **sin tocar `tipos.csv`** (se conserva la última versión buena) y el resto del pipeline (oro, DXY, COT) sigue commiteando con normalidad.
 
+## Volumen y open interest diarios del GC (`oi_volumen.csv`)
+
+Serie **diaria** del volumen negociado y el interés abierto **totales** de los futuros de oro GC del COMEX, en ventana rodante de **12 meses** (full rebuild en cada ejecución), regenerada por `descarga_oi_volumen.py` en el cron diario de las 05:30 UTC.
+
+**Fuente**: API EOD de Barchart, **sumando todos los vencimientos vivos del GC** (los 12 códigos de mes × años, ~30 contratos activos). Es la única forma de reproducir el total que publica cmegroup.com: el contrato frontal solo (que es lo que da Yahoo Finance) representa el 70-80 % del volumen real y no incluye OI. Por construcción la serie es de **futuros puros GC**: la raíz `GC` excluye las opciones y el Micro Gold (raíz `MGC`).
+
+| Columna | Descripción |
+|---|---|
+| `fecha` | Día de la sesión COMEX (YYYY-MM-DD) |
+| `volumen` | Contratos negociados ese día, sumados todos los vencimientos |
+| `open_interest` | Interés abierto total al cierre; **vacío si aún no está liquidado** |
+| `estado` | `final` (OI ya liquidado por CME) o `preliminar` (última sesión, OI pendiente) |
+| `contrato_activo` | Vencimiento con más volumen ese día (p. ej. `GCQ26`) |
+
+Detalles a tener en cuenta:
+
+- **El OI liquida T+1 hábil**: CME publica el OI definitivo de cada sesión el día hábil siguiente. La última fila puede ir `preliminar` con `open_interest` vacío — se usa su `volumen` pero **no** se arrastra el OI del día anterior. El full rebuild diario la corrige sola en la siguiente ejecución. En particular, el **OI del viernes** no está disponible hasta el lunes: la ejecución del sábado deja el viernes con volumen válido y OI pendiente.
+- **La sesión en curso se excluye siempre** (su volumen sería parcial): el último dato es la última sesión ya cerrada.
+- **Validación contra la CFTC**: antes de escribir, el script exige que el OI de **todos los martes** de la ventana cuadre con la columna `open_interest` de `cot_gold_historico.csv` (margen ≤5 contratos; en la validación inicial del 27-07-2026, 51 martes cuadraron con desvío 0). Si un martes desvía, o Barchart deja de responder, el paso falla **sin tocar el CSV** (se conserva la última versión buena) y el resto del pipeline sigue commiteando. No hay fallback degradado: nunca entra en la serie el OI de un solo contrato.
+
 ## Actualización
 
 GitHub Actions ejecuta el pipeline con tres crons:
 
-- **Diario, 05:30 UTC**: `descarga_precios.py` (los cuatro ficheros de precio: `oro_diario.csv`, `oro_1h.csv`, `dxy_diario.csv`, `dxy_1h.csv`) + `descarga_tipos.py` (`tipos.csv`).
+- **Diario, 05:30 UTC**: `descarga_precios.py` (los cuatro ficheros de precio: `oro_diario.csv`, `oro_1h.csv`, `dxy_diario.csv`, `dxy_1h.csv`) + `descarga_tipos.py` (`tipos.csv`) + `descarga_oi_volumen.py` (`oi_volumen.csv`).
 - **Sábado y domingo, 06:00 UTC** (08:00 Madrid en horario de verano): los tres scripts — full rebuild del COT 1986→hoy tras la publicación del viernes de la CFTC (el domingo es reintento inocuo) + precios + tipos.
 
 Ambos scripts validan la integridad del resultado antes de guardar (número de filas mínimo y frescura de la última fecha/vela); si la validación falla, el job termina en error **sin commitear**, conservando la versión previa de los ficheros. Si no hay datos nuevos no se crea commit. También puede lanzarse a mano desde la pestaña Actions (`workflow_dispatch`, ejecuta ambos scripts).
@@ -128,4 +149,5 @@ pip install -r requirements.txt
 python build_cot_gold_csv.py
 python descarga_precios.py
 python descarga_tipos.py
+python descarga_oi_volumen.py
 ```

@@ -43,9 +43,15 @@ jobs:
         continue-on-error: true
         run: python descarga_tipos.py
 
+      - name: Descargar volumen + OI diarios GC (oi_volumen.csv, Barchart agregado)
+        # valida los martes contra el COT; si falla no escribe (se conserva la
+        # ultima version buena) y el commit del resto sigue adelante
+        continue-on-error: true
+        run: python descarga_oi_volumen.py
+
       - name: Commit y push si hay cambios
         run: |
-          FICHEROS="cot_gold_historico.csv oro_diario.csv oro_1h.csv dxy_diario.csv dxy_1h.csv tipos.csv"
+          FICHEROS="cot_gold_historico.csv oro_diario.csv oro_1h.csv dxy_diario.csv dxy_1h.csv tipos.csv oi_volumen.csv"
           if [ -z "$(git status --porcelain -- $FICHEROS)" ]; then
             echo "Sin cambios en los CSV: nada que commitear."
           else
