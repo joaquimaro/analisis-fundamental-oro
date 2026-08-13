@@ -1,5 +1,4 @@
 fecha,volumen,open_interest,estado,contrato_activo
-2025-08-12,220255,446152,final,GCZ25
 2025-08-13,155741,444675,final,GCZ25
 2025-08-14,180976,439709,final,GCZ25
 2025-08-15,132215,440051,final,GCZ25
@@ -249,4 +248,5 @@ fecha,volumen,open_interest,estado,contrato_activo
 2026-08-06,201455,387986,final,GCZ26
 2026-08-07,231259,397702,final,GCZ26
 2026-08-10,142327,399623,final,GCZ26
-2026-08-11,162896,400030,preliminar,GCZ26
+2026-08-11,162896,400309,final,GCZ26
+2026-08-12,186126,403674,preliminar,GCZ26
